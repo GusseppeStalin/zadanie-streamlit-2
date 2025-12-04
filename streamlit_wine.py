@@ -71,67 +71,108 @@ def fig_to_bytes(fig):
 # Advanced analysis section
 # -------------------------
 if mode == "Zaawansowana analiza":
-    st.title("Zaawansowana analityka: 3 podejścia")
-    st.markdown("""
-Porównamy 5 modeli:
+    st.title("Zaawansowana analityka: 4 podejścia")
 
-- **GradientBoostingRegressor**
-- **RandomForestRegressor**
-- **ElasticNet**
-- **SVR**
-- **KNeighborsRegressor**
-""")
-
-    from sklearn.ensemble import RandomForestRegressor
-    from sklearn.linear_model import ElasticNet
-    from sklearn.svm import SVR
-    from sklearn.neighbors import KNeighborsRegressor
+    analysis_method = st.selectbox(
+        "Metoda analizy:",
+        [
+            "A — Rozkłady i korelacje (EDA)",
+            "B — Redukcja wymiarów (PCA)",
+            "C — Segmentacja (KMeans)",
+            "D — Boxplot & Violin Plot",
+            "F — Radar Chart (Spider Plot)"
+        ]
+    )
 
     numeric = wine.select_dtypes(include=np.number).columns.tolist()
-    features = [c for c in numeric if c != 'quality']
-    X = wine[features]
-    y = wine['quality']
 
-    test_size = st.slider("Test size (%)", 5, 40, 20)
-    seed = st.number_input("Random state", 0, 9999, 42)
+    # ------------------ A ------------------
+    if analysis_method.startswith("A"):
+        st.header("A — Rozkłady i korelacje (EDA)")
+        feat = st.selectbox("Wybierz zmienną do histogramu:", numeric)
+        fig, ax = plt.subplots()
+        sns.histplot(wine[feat], kde=True, ax=ax)
+        st.pyplot(fig)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size/100, random_state=seed)
+        st.subheader("Heatmapa korelacji")
+        fig2, ax2 = plt.subplots(figsize=(8,6))
+        sns.heatmap(wine[numeric].corr(), annot=True, cmap="vlag", ax=ax2)
+        st.pyplot(fig2)
 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-
-    models = {
-        "GradientBoosting": GradientBoostingRegressor(random_state=seed),
-        "RandomForest": RandomForestRegressor(random_state=seed),
-        "ElasticNet": ElasticNet(),
-        "SVR": SVR(),
-        "KNN": KNeighborsRegressor()
-    }
-
-    results = {}
-    for name, model in models.items():
-        if name in ["ElasticNet", "SVR", "KNN"]:
-            model.fit(X_train_scaled, y_train)
-            pred = model.predict(X_test_scaled)
+    # ------------------ B ------------------
+    elif analysis_method.startswith("B"):
+        st.header("B — PCA (redukcja wymiarów)")
+        feats = st.multiselect("Cechy do PCA:", numeric, default=numeric)
+        if len(feats) >= 2:
+            X = StandardScaler().fit_transform(wine[feats])
+            pca = PCA(n_components=2)
+            comp = pca.fit_transform(X)
+            df_pca = pd.DataFrame(comp, columns=['PC1','PC2'])
+            df_pca['quality'] = wine['quality']
+            st.plotly_chart(px.scatter(df_pca, x='PC1', y='PC2', color='quality'), use_container_width=True)
         else:
-            model.fit(X_train, y_train)
-            pred = model.predict(X_test)
+            st.info("Wybierz co najmniej dwie cechy.")
 
-        rmse = np.sqrt(mean_squared_error(y_test, pred))
-        r2 = r2_score(y_test, pred)
-        results[name] = {"RMSE": rmse, "R2": r2}
+    # ------------------ C ------------------
+    elif analysis_method.startswith("C"):
+        st.header("C — Segmentacja KMeans")
+        feats = st.multiselect("Cechy do klastrowania:", numeric, default=['alcohol','sulphates'])
+        if len(feats) >= 2:
+            X = StandardScaler().fit_transform(wine[feats])
+            k = st.slider("Liczba klastrów K", 2, 10, 3)
+            labels = KMeans(n_clusters=k, random_state=42).fit_predict(X)
+            dfc = wine[feats].copy()
+            dfc['cluster'] = labels
+            st.plotly_chart(px.scatter(dfc, x=feats[0], y=feats[1], color='cluster'), use_container_width=True)
+        else:
+            st.info("Wybierz co najmniej dwie cechy.")
 
-    df_res = pd.DataFrame(results).T
+    # ------------------ D ------------------
+    elif analysis_method.startswith("D"):
+        st.header("D — Boxplot & Violin Plot")
+        feat = st.selectbox("Wybierz cechę do wizualizacji:", numeric)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Boxplot")
+            st.plotly_chart(px.box(wine, x='quality', y=feat), use_container_width=True)
+        with col2:
+            st.subheader("Violin plot")
+            st.plotly_chart(px.violin(wine, x='quality', y=feat, box=True, points='all'), use_container_width=True)
 
-    st.subheader("Wyniki modeli")
-    st.dataframe(df_res.style.highlight_min(axis=0, color='lightgreen').highlight_max(axis=0, color='lightblue'))
+    # ------------------ F ------------------
+    elif analysis_method.startswith("F"):
+        st.header("F — Radar Chart (Spider Plot)")
+        st.markdown("Wizualizacja średnich wartości cech dla każdej oceny jakości wina.")
 
-    st.subheader("Wykres RMSE")
-    st.bar_chart(df_res['RMSE'])
+        feats = st.multiselect("Wybierz cechy do wykresu radarowego:", numeric, default=['alcohol','sulphates','pH','volatile acidity'])
+        if len(feats) < 3:
+            st.info("Wybierz co najmniej 3 cechy, aby wykres radarowy był czytelny.")
+        else:
+            df_mean = wine.groupby('quality')[feats].mean()
+            categories = feats
+            qualities = df_mean.index.tolist()
 
-    st.subheader("Wykres R²")
-    st.bar_chart(df_res['R2'])
+            fig = plt.figure(figsize=(7,7))
+            ax = plt.subplot(111, polar=True)
+
+            angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
+            angles += angles[:1]
+
+            for q in qualities:
+                values = df_mean.loc[q].tolist()
+                values += values[:1]
+                ax.plot(angles, values, linewidth=2, label=f'Quality {q}')
+                ax.fill(angles, values, alpha=0.1)
+
+            ax.set_xticks(angles[:-1])
+            ax.set_xticklabels(categories)
+            ax.set_title("Radar Chart — Średnie wartości cech per jakość", y=1.1)
+            ax.legend(loc='upper right', bbox_to_anchor=(1.3,1.1))
+
+            st.pyplot(fig)
+        with col2:
+            st.subheader("Violin plot")
+            st.plotly_chart(px.violin(wine, x='quality', y=feat, box=True, points='all'), use_container_width=True)
 
 # -------------------------
 # Prediction: GradientBoosting
