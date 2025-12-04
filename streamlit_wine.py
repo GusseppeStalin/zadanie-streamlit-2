@@ -34,10 +34,10 @@ quality_path = find_file("winequality-red.csv")
 food_path = find_file("wine_food_pairings.csv")
 
 if quality_path is None or food_path is None:
-    st.error("Nie znaleziono wymaganych plików CSV w katalogu aplikacji. Upewnij się, że:
+    st.error("""Nie znaleziono wymaganych plików CSV w katalogu aplikacji. Upewnij się, że:
 - winequality-red.csv
 - wine_food_pairings.csv
-są obok pliku aplikacji.")
+są obok pliku aplikacji.""")
     if st.button("Pokaż aktualny katalog"):
         st.write(os.listdir("."))
     st.stop()
