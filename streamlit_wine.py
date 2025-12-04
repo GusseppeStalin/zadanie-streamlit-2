@@ -74,7 +74,15 @@ if mode == "Zaawansowana analiza":
     st.title("Zaawansowana analityka: 3 podejścia")
     st.markdown("Wybierz jedno z trzech podejść analitycznych:")
 
-    analysis_method = st.selectbox("Metoda analizy:", ["A — Rozkłady i korelacje (EDA)", "B — Redukcja wymiarów (PCA)", "C — Segmentacja (KMeans)")
+    analysis_method = st.selectbox(
+    "Metoda analizy:",
+    [
+        "A — Rozkłady i korelacje (EDA)",
+        "B — Redukcja wymiarów (PCA)",
+        "C — Segmentacja (KMeans)"
+    ]
+)
+
 
     numeric = wine.select_dtypes(include=np.number).columns.tolist()
 
